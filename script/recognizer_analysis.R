@@ -20,8 +20,8 @@ hit <- rbind(oven, coni) %>%
          samplerate = case_when(samplerate==22050 ~ 32000,
                                 samplerate==32000 ~ 22050,
                                 samplerate==44100 ~ 44100),
-         compressiontype = ifelse(filetype=="wav", "wav", paste0("mp3-", compressionrate)),
-         compressiontype = factor(compressiontype, levels=c("wav", "mp3-320", "mp3-96")),
+         compressiontype = ifelse(filetype=="wav", "wav", paste0("mp3_", compressionrate)),
+         compressiontype = factor(compressiontype, levels=c("wav", "mp3_320", "mp3_96")),
          samplerate.s = (samplerate-22050)/22050) %>% 
   dplyr::filter(!is.na(detection))
 
@@ -168,7 +168,7 @@ r.pred$species <- factor(r.pred$species, labels=c("Common Nighthawk", "Ovenbird"
 r.plot <- ggplot() +
   geom_ribbon(data=r.pred, aes(x=samplerate, ymin = lower, ymax=upper, group=compressiontype), alpha = 0.3) +
   geom_line(data=r.pred, aes(x=samplerate, y=pred.fit, colour=compressiontype)) +
-  scale_colour_viridis_d(name="Compression treatment\n (filetype-compression rate)") +
+  scale_colour_viridis_d(name="Compression treatment\n (filetype_compression rate)") +
   facet_wrap(~species) + 
   my.theme +
   xlab("Sample rate") +

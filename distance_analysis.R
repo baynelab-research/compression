@@ -65,11 +65,12 @@ for(i in 1:length(method.list)){
   method1 <- detect[detect$method == method.list[i], ]
   for(j in 1:length(sp.list)){
     data <- method1[method1$Species == sp.list[j], ]
+    data <- data[!is.na(data$detect),]
     m <- glm(detect ~ x -1, data = data, family = binomial("cloglog"))
     f <- fitted(m)
     edr <- list()
     for(k in 1:1000) {
-      y_star <- rbinom(length(f)+1, 1, f)
+      y_star <- rbinom(length(f), 1, f)
       df_star <- data.frame(y = y_star, x = data$x)
       m_star <- glm(y ~ x -1, data = df_star, family = binomial("cloglog"))
       edr[[k]] <- sqrt(1/coef(m_star))
@@ -85,3 +86,7 @@ for(i in 1:length(method.list)){
 
   
 }
+
+CI83 <- do.call(rbind.data.frame, conf)
+CI83$index <- rownames(CI83)
+CI83 <- separate(data=CI83, col=index, into=c("Species","method","limit","misc"))

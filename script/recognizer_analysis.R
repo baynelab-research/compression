@@ -138,7 +138,7 @@ h.pred$species <- factor(h.pred$species, labels=c("Common Nighthawk", "Ovenbird"
 rec$species <- factor(rec$species, labels=c("Common Nighthawk", "Ovenbird"))
 
 h.plot <- ggplot() +
-  geom_point(data=rec, aes(x=samplerate, y=precision), pch=21, colour="grey50", fill="grey70") +
+  geom_point(data=rec, aes(x=samplerate, y=precision), pch=21, colour="grey50", fill="grey70", size=2) +
   geom_ribbon(data=h.pred, aes(x=samplerate, ymin = lower, ymax=upper,), alpha = 0.3) +
   geom_line(data=h.pred, aes(x=samplerate, y=pred.fit)) +
   facet_wrap(~species) + 
@@ -168,7 +168,7 @@ r.pred$species <- factor(r.pred$species, labels=c("Common Nighthawk", "Ovenbird"
 r.plot <- ggplot() +
   geom_ribbon(data=r.pred, aes(x=samplerate, ymin = lower, ymax=upper, group=compressiontype), alpha = 0.3) +
   geom_line(data=r.pred, aes(x=samplerate, y=pred.fit, colour=compressiontype)) +
-  scale_colour_viridis_d(name="Compression treatment\n (filetype_compression rate)") +
+  scale_colour_viridis_d(name="Compression treatment\n(File type_Compression rate)") +
   facet_wrap(~species) + 
   my.theme +
   xlab("Sample rate") +

@@ -5,8 +5,6 @@ library(gridExtra)
 
 #NOTE: 100 recordings with confirmed detections were scanned for each species and for each treatment combination
 
-#TO DO: NEED TO INVESTIGATE NUMBER OF FILES RUN FOR 96 X 44100
-
 #1. Read in data----
 oven <- read.csv("data/recognizer/CompiledCNNResults_OVEN_Validated.csv") %>%
   mutate(species="OVEN")
@@ -35,20 +33,23 @@ rec <- hit %>%
 
 #4. Summarize at species level----
 spp <- rec %>% 
-  group_by(species, samplerate.s, compressiontype) %>% 
+  group_by(species, samplerate.s, samplerate, compressiontype) %>% 
   summarize(precision = mean(precision),
             hits = n()) %>% 
   ungroup() %>% 
-  mutate(recall=hits/100)
+  mutate(files=case_when(compressiontype=="mp3_96" & species=="CONI" & samplerate==44100 ~ 93,
+                          compressiontype=="mp3_96" & species=="OVEN" & samplerate==44100 ~ 64,
+                          !is.na(compressiontype) ~ 100),
+         recall=hits/files)
 spp
 
 #5. Make a dataframe for recall analysis----
 recall <- data.frame()
 for(i in 1:nrow(spp)){
-  recall.i <- data.frame(species = rep(spp$species[i],100),
-                        samplerate.s = rep(spp$samplerate.s[i],100),
-                        compressiontype = rep(spp$compressiontype[i]), 100,
-                        hit = c(rep(1, spp$hits[i]), rep(0, 100-spp$hits[i])))
+  recall.i <- data.frame(species = rep(spp$species[i],spp$files[i]),
+                        samplerate.s = rep(spp$samplerate.s[i],spp$files[i]),
+                        compressiontype = rep(spp$compressiontype[i]), spp$files[i],
+                        hit = c(rep(1, spp$hits[i]), rep(0, spp$files[i]-spp$hits[i])))
   recall <- rbind(recall.i, recall)
 }
 
@@ -94,7 +95,7 @@ recall.coni <- dplyr::filter(recall, species=="CONI")
 r0.coni <- glm(hit ~ samplerate.s*compressiontype, data=recall.coni, na.action="na.fail")
 dredge(r0.coni)
 
-r1.coni <- glm(hit ~ samplerate.s + compressiontype, data=recall.coni, na.action="na.fail")
+r1.coni <- glm(hit ~ 1, data=recall.coni, na.action="na.fail")
 summary(r1.coni)
 
 #OVEN
@@ -102,7 +103,7 @@ recall.oven <- dplyr::filter(recall, species=="OVEN")
 r0.oven <- glm(hit ~ samplerate.s*compressiontype, data=recall.oven, na.action="na.fail")
 dredge(r0.oven)
 
-r1.oven <- r0.oven
+r1.oven <- glm(hit ~ 1, data=recall.oven, na.action="na.fail")
 summary(r1.oven)
 
 #8. Plot----
@@ -121,7 +122,6 @@ my.theme <- theme_classic() +
 newdat <- expand.grid(compressiontype=unique(hit$compressiontype),
                       samplerate.s = seq(0, 1, 0.01))
 
-#8a. Effect of sample rate on p(true positive)----
 h.pred <- data.frame(pred = predict(h1.oven, newdat, se=TRUE)) %>% 
   cbind(newdat) %>% 
   mutate(species="OVEN") %>% 
@@ -148,39 +148,5 @@ h.plot <- ggplot() +
   ylab("Precision of detections") 
 h.plot
 
-#Sample rate*compression on p(recall)
-
-#8b. Compression and sample rate effect on recall----
-r.pred <- data.frame(pred = predict(r1.oven, newdat, se=TRUE, type="response")) %>% 
-  cbind(newdat) %>% 
-  mutate(species="OVEN") %>% 
-  rbind(data.frame(pred = predict(r1.coni, newdat, se=TRUE)) %>% 
-          cbind(newdat) %>% 
-          mutate(species="CONI")) %>% 
-  dplyr::select(pred.fit, pred.se.fit, samplerate.s, compressiontype, species) %>% 
-  unique() %>% 
-  mutate(samplerate = samplerate.s*22050 + 22050,
-         upper = pred.fit + 1.96*pred.se.fit,
-         lower = pred.fit - 1.96*pred.se.fit)
-
-r.pred$species <- factor(r.pred$species, labels=c("Common Nighthawk", "Ovenbird"))
-
-r.plot <- ggplot() +
-  geom_ribbon(data=r.pred, aes(x=samplerate, ymin = lower, ymax=upper, group=compressiontype), alpha = 0.3) +
-  geom_line(data=r.pred, aes(x=samplerate, y=pred.fit, colour=compressiontype)) +
-  scale_colour_viridis_d(name="Compression treatment\n(File type_Bit rate)") +
-  facet_wrap(~species) + 
-  my.theme +
-  xlab("Sample rate") +
-  ylab("Recall of recordings")  +
-  theme(legend.position="bottom")
-r.plot
-
-#8c. Put together----
-rh.plot <- grid.arrange(h.plot, r.plot,
-                        widths = c(1),
-                        heights = c(4,5),
-                        layout_matrix=rbind(c(1), c(2)))
-
 #8d. Save----
-ggsave(rh.plot, filename="figures/Recognizers.jpeg", width=6, height=8)
+ggsave(h.plot, filename="figures/Recognizers.jpeg", width=6, height=8)

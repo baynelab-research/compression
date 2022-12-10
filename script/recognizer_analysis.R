@@ -168,7 +168,7 @@ r.pred$species <- factor(r.pred$species, labels=c("Common Nighthawk", "Ovenbird"
 r.plot <- ggplot() +
   geom_ribbon(data=r.pred, aes(x=samplerate, ymin = lower, ymax=upper, group=compressiontype), alpha = 0.3) +
   geom_line(data=r.pred, aes(x=samplerate, y=pred.fit, colour=compressiontype)) +
-  scale_colour_viridis_d(name="Compression treatment\n(File type_Compression rate)") +
+  scale_colour_viridis_d(name="Compression treatment\n(File type_Bit rate)") +
   facet_wrap(~species) + 
   my.theme +
   xlab("Sample rate") +

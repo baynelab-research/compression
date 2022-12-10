@@ -71,7 +71,7 @@ pred <- data.frame(pred = predict(aci1, newdat, se=TRUE)) %>%
 h.plot <- ggplot() +
   geom_point(data=dat, aes(x=samplerate, y=aci, colour=compressiontype), pch=21, colour="grey50", fill="grey70", size=2) +
   geom_ribbon(data=pred, aes(x=samplerate, ymin = lower, ymax=upper, group=compressiontype), alpha = 0.3) +
-  scale_colour_viridis_d(name="Compression treatment\n(File type_Compression rate)") +
+  scale_colour_viridis_d(name="Compression treatment\n(File type_Bit rate)") +
   geom_line(data=pred, aes(x=samplerate, y=pred.fit, colour=compressiontype)) +
   my.theme +
   theme(legend.position="bottom") +

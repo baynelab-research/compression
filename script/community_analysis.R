@@ -1,5 +1,7 @@
 library(tidyverse)
 library(readxl)
+library(dplyr)
+library(MuMIn)
 
 #1. Read in data----
 raw <- readxl::read_excel("data/community/community_listening_data.xlsx")
@@ -77,3 +79,69 @@ ggplot(dat.abun) +
 #6b. Richness----
 ggplot(dat.rich) +
   geom_boxplot(aes(x=factor(samplerate), y=n, colour=compressiontype))
+
+#7. Analysis----
+
+#7a. Richness---
+sr.list <- unique(dat.rich$samplerate)
+ci.rich <- data.frame()
+for(i in 1:length(sr.list)){
+  x <- dat.rich %>%
+    subset(samplerate == sr.list[i])
+  ct.list <- unique(x$compressiontype)
+  for(j in 1:length(ct.list)){
+    y <- x %>%
+      subset(compressiontype == ct.list[j])
+    z <- as.data.frame(quantile(y$n, c(0.085,0.915), na.rm = TRUE))
+    z$ci <- rownames(z)
+    z$samplerate <- sr.list[i]
+    z$compressiontype <- ct.list[j]
+    z$mean.rich <- mean(y$n)
+    ci.rich <- rbind(ci.rich,z)
+  }
+}
+m1 <- glm(n ~ 1, data = dat.rich)
+m2 <- glm(n ~ samplerate, data = dat.rich)
+m3 <- glm(n ~ compressiontype, data = dat.rich)
+m4 <- glm(n ~ compressiontype + samplerate, data = dat.rich)
+m5 <- glm(n ~ compressiontype*samplerate, data = dat.rich)
+model.sel(m1,m2,m3,m4,m5)
+
+#7b. Abundance
+file.list <- unique(dat.abun$FileName)
+dat.ind <- data.frame()
+y <- data.frame(samplerate=NA,compressiontype=NA,FileName=NA,sum=NA)
+for(i in 1:length(file.list)){
+  x <- dat.abun %>%
+    subset(FileName == file.list[i])
+  y$samplerate <- x$samplerate[1]
+  y$compressiontype <- x$compressiontype[1]
+  y$FileName <- x$FileName[1]
+  y$sum <- sum(x$abundance)
+  dat.ind <- rbind(dat.ind, y)
+}
+
+sr.list <- unique(dat.ind$samplerate)
+ci.ind <- data.frame()
+for(i in 1:length(sr.list)){
+  x <- dat.ind %>%
+    subset(samplerate == sr.list[i])
+  ct.list <- unique(x$compressiontype)
+  for(j in 1:length(ct.list)){
+    y <- x %>%
+      subset(compressiontype == ct.list[j])
+    z <- as.data.frame(quantile(y$sum, c(0.085,0.915), na.rm = TRUE))
+    z$ci <- rownames(z)
+    z$samplerate <- sr.list[i]
+    z$compressiontype <- ct.list[j]
+    z$mean.ind <- mean(y$sum)
+    ci.ind <- rbind(ci.ind,z)
+  }
+}
+
+n1 <- glm(sum ~ 1, data = dat.ind)
+n2 <- glm(sum ~ samplerate, data = dat.ind)
+n3 <- glm(sum ~ compressiontype, data = dat.ind)
+n4 <- glm(sum ~ compressiontype + samplerate, data = dat.ind)
+n5 <- glm(sum ~ compressiontype*samplerate, data = dat.ind)
+model.sel(n1,n2,n3,n4,n5)

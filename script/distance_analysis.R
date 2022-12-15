@@ -90,3 +90,11 @@ for(i in 1:length(method.list)){
 CI83 <- do.call(rbind.data.frame, conf)
 CI83$index <- rownames(CI83)
 CI83 <- separate(data=CI83, col=index, into=c("Species","method","limit","misc"))
+CI_wide <- CI83 %>%
+  pivot_wider(names_from = limit, values_from = x)
+CI_wide <- CI_wide[-c(3)]
+colnames(CI_wide) <- c("Species","method","lci","uci")
+
+CI_wide$mean <- ((CI_wide$uci - CI_wide$lci)/2) + CI_wide$lci
+  
+

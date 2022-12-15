@@ -70,7 +70,7 @@ ggplot(recall) +
 #7a. Probability of detection being true----
 #CONI
 rec.coni <- dplyr::filter(rec, species=="CONI")
-h0.coni <- glm(precision ~ samplerate.s*compressiontype,
+h0.coni <- lm(precision ~ samplerate.s*compressiontype,
             data=rec.coni, na.action = "na.fail")
 dredge(h0.coni)
 
@@ -141,12 +141,13 @@ h.plot <- ggplot() +
   geom_point(data=rec, aes(x=samplerate, y=precision), pch=21, colour="grey50", fill="grey70", size=2) +
   geom_ribbon(data=h.pred, aes(x=samplerate, ymin = lower, ymax=upper,), alpha = 0.3) +
   geom_line(data=h.pred, aes(x=samplerate, y=pred.fit)) +
+  scale_x_continuous(limits = c(20000, 45000), breaks = c(20000, 30000, 40000), labels=c("20", "30", "40")) +
   facet_wrap(~species) + 
   my.theme +
   theme(legend.position="none") +
-  xlab("Sample rate") +
+  xlab("Sample rate (kHz)") +
   ylab("Precision of detections") 
 h.plot
 
 #8d. Save----
-ggsave(h.plot, filename="figures/Recognizers.jpeg", width=6, height=8)
+ggsave(h.plot, filename="figures/Recognizers.jpeg", width=6, height=4)

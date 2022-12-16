@@ -1,6 +1,5 @@
 library(tidyverse)
 library(brms)
-library(gridExtra)
 library(bayesplot)
 library(tidybayes)
 library(ggridges)
@@ -79,7 +78,7 @@ ggplot(dat) +
 dat.coni <- dplyr::filter(dat, species=="CONI")
 dat.oven <- dplyr::filter(dat, species=="OVEN")
 
-priors <- c(prior(normal(0,10), class = "Intercept"),
+priors <- c(prior(normal(100, 10000), class = "Intercept"),
               prior(normal(0,10), class = "b", coef ="compressiontypemp3_96"),
               prior(normal(0,10), class = "b", coef = "compressiontypemp3_320"),
               prior(normal(0,10), class = "b", coef = "samplerate32000"),
@@ -89,13 +88,12 @@ priors <- c(prior(normal(0,10), class = "Intercept"),
             prior(normal(0,10), class = "b", coef = "samplerate44100:compressiontypemp3_96"),
             prior(normal(0,10), class = "b", coef = "samplerate44100:compressiontypemp3_320"))
 
-#7a. Probability of detection being true----
-#CONI
+#7a. CONI
 p.coni.b <- brm(precision ~ samplerate*compressiontype + (1|recording),
                 family=Beta(),
                 data = dat.coni, 
                 warmup = 1000, 
-                iter   = 10000, 
+                iter   = 20000, 
                 chains = 3, 
                 inits  = "random",
                 cores  = 6,
@@ -125,44 +123,18 @@ summary(p.coni.b)
 # #check distribution
 # pp_check(p.coni.b, ndraws = 500)
 
-#OVEN
+#7b. OVEN
 p.oven.b <- brm(precision ~ samplerate*compressiontype + (1|recording),
                 family=Beta(),
                 data = dplyr::filter(dat.oven, !is.na(precision)), 
                 warmup = 1000, 
-                iter   = 10000, 
+                iter   = 20000, 
                 chains = 3, 
                 inits  = "random",
                 cores  = 6,
                 prior = priors)
 
 summary(p.oven.b)
-
-#7b. Recording level recall----
-
-#CONI
-r.coni.b <- brm(recall ~ samplerate*compressiontype + (1|recording),
-                family="binomial",
-                data = dat.coni, 
-                warmup = 1000, 
-                iter   = 10000, 
-                chains = 3, 
-                inits  = "random",
-                cores  = 6,
-                prior = priors)
-summary(r.coni.b)
-
-#OVEN
-r.oven.b <- brm(recall ~ samplerate*compressiontype + (1|recording),
-                family="bernoulli",
-                data = dat.oven, 
-                warmup = 1000, 
-                iter   = 10000, 
-                chains = 3, 
-                inits  = "random",
-                cores  = 6,
-                prior = priors)
-summary(r.oven.b)
 
 #8. Predict----
 newdat <- expand.grid(samplerate = unique(dat$samplerate),
@@ -172,32 +144,15 @@ p.coni.pred <- newdat %>%
   add_epred_draws(p.coni.b,
                    re_formula = NA,
                    ndraws = 1000) %>% 
-  mutate(species="CONI",
-         response="precision")
+  mutate(species="CONI")
 
 p.oven.pred <- newdat %>% 
   add_epred_draws(p.oven.b,
                    re_formula = NA,
                    ndraws = 1000) %>% 
-  mutate(species="OVEN",
-         response="precision")
+  mutate(species="OVEN")
 
-r.coni.pred <- newdat %>% 
-  add_epred_draws(r.coni.b,
-                   re_formula = NA,
-                   ndraws = 1000) %>% 
-  mutate(species="CONI",
-         response="recall")
-
-r.oven.pred <- newdat %>% 
-  add_epred_draws(r.oven.b,
-                   re_formula = NA,
-                   ndraws = 1000) %>% 
-  mutate(species="OVEN",
-         response="recall")
-
-pred <- rbind(p.coni.pred, p.oven.pred, r.coni.pred, r.oven.pred)
-pred$response <- factor(pred$response, labels=c("Precision (detetions)", "Recall (recordings)"))
+pred <- rbind(p.coni.pred, p.oven.pred)
 pred$species <- factor(pred$species, labels=c("Common nighthawk (CONI)", "Ovenbird (OVEN)"))
 
 #9. Plot----
@@ -213,21 +168,26 @@ my.theme <- theme_classic() +
         legend.title=element_text(size=12),
         plot.title=element_text(size=12, hjust = 0.5))
 
-#9a. OVEN precision----
-ggplot(pred) +
+recognizer.plot <- ggplot(pred) +
   geom_density_ridges(aes(x=.epred, y=samplerate, fill=compressiontype), colour="grey30", alpha = 0.5) +
   scale_fill_viridis_d(name="Compression type\n(file type_bit rate") +
   ylab("Sample rate (Hz)") +
+  xlab("Precision") +
   my.theme +
-  theme(legend.position = "bottom",
-        axis.title.x = element_blank()) +
-  facet_grid(species ~ response, scales="free")
+  theme(legend.position = "bottom") +
+  facet_wrap(~species, scales="free_x")
 
-#9d. Save----
-ggsave(h.plot, filename="figures/Recognizers.jpeg", width=6, height=4)
+ggsave(recognizer.plot, filename="figures/Recognizers.jpeg", width=8, height=6)
 
 #10. Summary stats----
 mean(dat.coni$precision, na.rm=TRUE)
 mean(dat.oven$precision, na.rm=TRUE)
 mean(dat.coni$recall, na.rm=TRUE)
 mean(dat.oven$recall, na.rm=TRUE)
+
+dat %>% 
+  group_by(species, samplerate, compressiontype) %>% 
+  summarize(n=n(),
+            hits = sum(recall)) %>% 
+  ungroup() %>% 
+  mutate(recall=hits/n)

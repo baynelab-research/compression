@@ -2,6 +2,8 @@ library(tidyverse)
 library(lme4)
 library(MuMIn)
 library(gridExtra)
+library(merTools)
+library(performance)
 
 #1. Read in data----
 aci <- read.csv("data/acoustic indices/ACI.csv") %>% 
@@ -16,7 +18,14 @@ dat <- full_join(aci, adi) %>%
          compressiontype = ifelse(samplerate==44100,
                                   str_sub(treatment, 17, 100),
                                   str_sub(treatment, 8, 100)),
-         samplerate.s = (samplerate-22050)/22050)
+         samplerate.s = (samplerate-22050)/22050) %>% 
+  separate(compressiontype, into=c("bitrate", "filetype")) %>% 
+  mutate(compressiontype = ifelse(bitrate=="wav", "wav", paste0(filetype, "_", bitrate)),
+         aci.s = (aci-min(aci))/(max(aci)-min(aci)),
+         adi.s = (adi-min(adi))/max(adi)-min(adi))
+
+#make compression type a factor
+dat$compressiontype <- factor(dat$compressiontype, levels=c("wav", "mp3_320", "mp3_96"))
 
 #3. Visualize----
 ggplot(dat) +
@@ -24,23 +33,35 @@ ggplot(dat) +
   geom_smooth(aes(x=samplerate.s, y=aci, colour=compressiontype))
 
 ggplot(dat) +
-  geom_point(aes(x=samplerate.s, y=adi, colour=compressiontype)) +
+#  geom_point(aes(x=samplerate.s, y=adi, colour=compressiontype)) +
   geom_smooth(aes(x=samplerate.s, y=adi, colour=compressiontype))
 
 #4. Model----
 
 #4a. ACI----
-aci0 <- lm(aci ~ samplerate.s*compressiontype, data=dat, na.action="na.fail")
+aci0 <- lmer(aci.s ~ samplerate.s + compressiontype + (1|recording), data=dat, na.action="na.fail", REML=FALSE)
+icc(aci0)
 dredge(aci0)
 
-aci1 <- lm(aci ~ samplerate.s + compressiontype, data=dat, na.action="na.fail")
+aci1 <- lmer(aci.s ~ samplerate.s*compressiontype + (1|recording), data=dat, na.action="na.fail")
+aci2 <- lmer(aci.s ~ samplerate.s+compressiontype + (1|recording), data=dat, na.action="na.fail")
+aci3 <- lmer(aci.s ~ samplerate.s + (1|recording), data=dat, na.action="na.fail")
+aci4 <- lmer(aci.s ~ compressiontype + (1|recording), data=dat, na.action="na.fail")
+aci5 <- lmer(aci.s ~ 1 + (1|recording), data=dat, na.action="na.fail")
 summary(aci1)
 
 #4b. ADI----
-adi0 <- lm(adi ~ samplerate.s*compressiontype, data=dat, na.action="na.fail")
+adi0 <- lmer(adi.s ~ samplerate.s*compressiontype + (1|recording), data=dat, na.action="na.fail", REML=FALSE)
+icc(adi0)
 dredge(adi0)
+#Compression type
 
-adi1 <- adi0
+adi1 <- lmer(adi.s ~ samplerate.s*compressiontype + (1|recording), data=dat, na.action="na.fail")
+adi2 <- lmer(adi.s ~ samplerate.s+compressiontype + (1|recording), data=dat, na.action="na.fail")
+adi3 <- lmer(adi.s ~ samplerate.s + (1|recording), data=dat, na.action="na.fail")
+adi4 <- lmer(adi.s ~ compressiontype + (1|recording), data=dat, na.action="na.fail")
+adi5 <- lmer(adi.s ~ 1 + (1|recording), data=dat, na.action="na.fail")
+lrtest(adi1, adi2, adi3, adi4, adi5)
 summary(adi1)
 
 #5. Plot----
@@ -57,27 +78,36 @@ my.theme <- theme_classic() +
         plot.title=element_text(size=12, hjust = 0.5))
 
 newdat <- expand.grid(compressiontype=unique(dat$compressiontype),
-                      samplerate.s = seq(0, 1, 0.01))
+                      samplerate.s = seq(0, 1, 0.01),
+                      recording = unique(dat$recording))
 
 #8a. Effect of sample rate on p(true positive)----
-pred <- data.frame(pred = predict(aci1, newdat, se=TRUE)) %>% 
-  cbind(newdat) %>% 
-  dplyr::select(pred.fit, pred.se.fit, samplerate.s, compressiontype) %>% 
-  unique() %>% 
-  mutate(samplerate = samplerate.s*22050 + 22050,
-         upper = pred.fit + 1.96*pred.se.fit,
-         lower = pred.fit - 1.96*pred.se.fit)
+ci.aci <- data.frame(confint(aci1))[3:6,] %>% 
+  cbind(mean = aci1@beta[1:4])
+colnames(ci.aci) <- c("lwr", "upr", "mean")
+ci.aci$beta <- row.names(ci.aci)
 
-h.plot <- ggplot() +
-  geom_point(data=dat, aes(x=samplerate, y=aci, colour=compressiontype), pch=21, colour="grey50", fill="grey70", size=2) +
-  geom_ribbon(data=pred, aes(x=samplerate, ymin = lower, ymax=upper, group=compressiontype), alpha = 0.3) +
-  scale_x_continuous(limits = c(20000, 45000), breaks = c(20000, 30000, 40000), labels=c("20", "30", "40")) +
-  scale_colour_viridis_d(name="Compression treatment\n(File type_Bit rate)") +
-  geom_line(data=pred, aes(x=samplerate, y=pred.fit, colour=compressiontype)) +
+ci.adi <- data.frame(confint(adi1))[3:6,] %>% 
+  cbind(mean = adi1@beta[1:4])
+colnames(ci.adi) <- c("lwr", "upr", "mean")
+ci.aci$beta <- row.names(ci.aci)
+
+ci.cmp <- data.frame(compressiontype=unique(dat$compressiontype),
+                     mean = c(ci.aci$mean[1], sum(ci.aci$mean[c(1,3)]), sum(ci.aci$mean[c(1,4)])),
+                     upr = c(ci.aci$upr[1], sum(ci.aci$upr[c(1,3)]), sum(ci.aci$upr[c(1,4)])),
+                     lwr = c(ci.aci$lwr[1], sum(ci.aci$lwr[c(1,3)]), sum(ci.aci$lwr[c(1,4)]))) %>% 
+  mutate(index = "ACI") %>% 
+  rbind(data.frame(compressiontype=unique(dat$compressiontype),
+                   mean = c(ci.adi$mean[1], sum(ci.adi$mean[c(1,3)]), sum(ci.adi$mean[c(1,4)])),
+                   upr = c(ci.adi$upr[1], sum(ci.adi$upr[c(1,3)]), sum(ci.adi$upr[c(1,4)])),
+                   lwr = c(ci.adi$lwr[1], sum(ci.adi$lwr[c(1,3)]), sum(ci.adi$lwr[c(1,4)]))) %>% 
+          mutate(index = "ADI"))
+
+plot.indices <- ggplot(ci.cmp) +
+  geom_point(aes(x=index, y=mean, colour=compressiontype), position=position_dodge(width = 1)) +
+  geom_errorbar(aes(x=index, ymin=lwr, ymax=upr, colour=compressiontype), position = position_dodge(width=1)) +
+  scale_colour_manual(values=c("orange", "darkblue", "lightblue"), name="Compression treatment\n(File type_bit rate)") +
   my.theme +
-  theme(legend.position="bottom") +
-  xlab("Sample rate") +
-  ylab("Acoustic complexity index (ACI)") 
-h.plot
+  theme(legend.position = "bottom")
 
-ggsave(h.plot, filename="figures/Indices.jpeg", width=6, height=5)
+ggsave(plot.indices, filename="figures/Indices.jpeg", width=6, height=5)

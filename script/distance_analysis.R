@@ -113,10 +113,12 @@ my.theme <- theme_classic() +
         legend.title=element_text(size=12),
         plot.title=element_text(size=12, hjust = 0.5))
 
-ggplot(CI_wide, aes(x = Species, y = mean))+
+d.plot <- ggplot(CI_wide, aes(x = Species, y = mean))+
   geom_errorbar(aes(ymin = lci, ymax = uci, group = method), position = position_dodge(width = 0.4), width = 0.2)+
   geom_point(aes(Species, mean, group = method, color = method), position = position_dodge(width = 0.4))+
   my.theme +
   xlab("Species") +
   ylab("Mean detection distance (m)") 
+
+ggsave(d.plot, filename="figures/Distance.jpeg", width=6, height=4)
 

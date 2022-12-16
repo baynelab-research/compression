@@ -3,6 +3,7 @@ library(lme4)
 library(MuMIn)
 library(car)
 library(tidyverse)
+library(ggplot2)
 
 #1. Read in data----
 u16 <- read_excel("data/detection distance/qry_detections_comp16.xlsx")
@@ -96,5 +97,28 @@ CI_wide <- CI_wide[-c(3)]
 colnames(CI_wide) <- c("Species","method","lci","uci")
 
 CI_wide$mean <- ((CI_wide$uci - CI_wide$lci)/2) + CI_wide$lci
-  
+CI_wide$ci <- ((CI_wide$uci - CI_wide$lci)/2)
+CI_wide <- filter(CI_wide, !(Species %in% c("1000Hz","1414Hz","2000Hz","11313Hz","BOOW","GGOW","BAOW")))
+
+#13. Plot results----
+my.theme <- theme_classic() +
+  theme(text=element_text(size=12, family="Arial"),
+        axis.text.x=element_text(size=12),
+        axis.text.y=element_text(size=12),
+        axis.title.x=element_text(margin=margin(10,0,0,0)),
+        axis.title.y=element_text(margin=margin(0,10,0,0)),
+        axis.line.x=element_line(linetype=1),
+        axis.line.y=element_line(linetype=1),
+        legend.text=element_text(size=12),
+        legend.title=element_text(size=12),
+        plot.title=element_text(size=12, hjust = 0.5))
+
+d.plot <- ggplot(CI_wide, aes(x = Species, y = mean))+
+  geom_errorbar(aes(ymin = lci, ymax = uci, group = method), position = position_dodge(width = 0.4), width = 0.2)+
+  geom_point(aes(Species, mean, group = method, color = method), position = position_dodge(width = 0.4))+
+  my.theme +
+  xlab("Species") +
+  ylab("Mean detection distance (m)") 
+
+ggsave(d.plot, filename="figures/Distance.jpeg", width=6, height=4)
 

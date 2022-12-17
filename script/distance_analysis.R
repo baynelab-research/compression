@@ -3,7 +3,10 @@ library(lme4)
 library(MuMIn)
 library(car)
 library(tidyverse)
-library(ggplot2)
+library(ggridges)
+
+#TO DO: CHANGE COLOUR OF MP3 CATEOGRY####
+#TO DO: REPLACE SPECIES NAMES####
 
 #1. Read in data----
 u16 <- read_excel("data/detection distance/qry_detections_comp16.xlsx")
@@ -62,6 +65,8 @@ model.sel(lr, lr1, lr2)
 sp.list <- unique(detect$Species)
 method.list <- unique(detect$method)
 conf <- list()
+edr.dat <- data.frame()
+edr_mat <- list()
 for(i in 1:length(method.list)){
   method1 <- detect[detect$method == method.list[i], ]
   for(j in 1:length(sp.list)){
@@ -77,15 +82,18 @@ for(i in 1:length(method.list)){
       edr[[k]] <- sqrt(1/coef(m_star))
     }
     
-    edr_mat <- do.call(rbind, edr)
-    conf[[paste(as.character(sp.list[j]), as.character(method.list[i]), sep = ".")]] <- apply(
-      edr_mat, 2, quantile, c(0.085, 0.915), na.rm = TRUE)
+    edr_mat[[j]] <- data.frame(do.call(rbind, edr)) %>% 
+      rename(edr=x) %>% 
+      mutate(species=sp.list[j],
+             compression=method.list[i])
+    conf[[paste(as.character(sp.list[j]), as.character(method.list[i]), sep = ".")]] <- quantile(edr_mat[[j]]$edr,c(0.085, 0.915), na.rm = TRUE)
     conf[[paste(as.character(sp.list[j]), as.character(method.list[i]), sep = ".")]]
     
-    
   }
-
   
+  edr.dat <- do.call(rbind, edr_mat) %>% 
+    rbind(edr.dat)
+
 }
 
 CI83 <- do.call(rbind.data.frame, conf)
@@ -113,12 +121,21 @@ my.theme <- theme_classic() +
         legend.title=element_text(size=12),
         plot.title=element_text(size=12, hjust = 0.5))
 
-d.plot <- ggplot(CI_wide, aes(x = Species, y = mean))+
-  geom_errorbar(aes(ymin = lci, ymax = uci, group = method), position = position_dodge(width = 0.4), width = 0.2)+
-  geom_point(aes(Species, mean, group = method, color = method), position = position_dodge(width = 0.4))+
-  my.theme +
-  xlab("Species") +
-  ylab("Mean detection distance (m)") 
+edr.dat2 <- edr.dat %>% 
+  group_by(species, compression) %>% 
+  dplyr::filter(edr >= quantile(edr, 0.085, na.rm=TRUE),
+                edr <= quantile(edr, 0.915, na.rm=TRUE)) %>% 
+  dplyr::filter(!species %in% c("1000Hz","1414Hz","2000Hz","11313Hz","BOOW","GGOW","BAOW"))
+edr.dat2$compression <- factor(edr.dat2$compression, levels=c("wav", "mp3"), labels=c("wav", "mp3_320"))
 
-ggsave(d.plot, filename="figures/Distance.jpeg", width=6, height=4)
+edr.plot <- ggplot(edr.dat2) +
+  geom_density_ridges(aes(x=edr, y=species, fill=compression), colour="grey30", alpha = 0.5) +
+  scale_fill_viridis_d(name="Compression type\n(file type_bit rate)", values=c(0, 0.5)) +
+  xlab("Effective detection radius (m)") +
+  my.theme +
+  theme(legend.position = "bottom",
+        axis.title.y = element_blank())
+edr.plot
+
+ggsave(edr.plot, filename="figures/Distance.jpeg", width=8, height=12)
 

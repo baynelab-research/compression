@@ -5,9 +5,6 @@ library(car)
 library(tidyverse)
 library(ggridges)
 
-#TO DO: CHANGE COLOUR OF MP3 CATEOGRY####
-#TO DO: REPLACE SPECIES NAMES####
-
 #1. Read in data----
 u16 <- read_excel("data/detection distance/qry_detections_comp16.xlsx")
 u37 <- read_excel("data/detection distance/qry_detections_comp37.xlsx")
@@ -127,15 +124,41 @@ edr.dat2 <- edr.dat %>%
                 edr <= quantile(edr, 0.915, na.rm=TRUE)) %>% 
   dplyr::filter(!species %in% c("1000Hz","1414Hz","2000Hz","11313Hz","BOOW","GGOW","BAOW"))
 edr.dat2$compression <- factor(edr.dat2$compression, levels=c("wav", "mp3"), labels=c("wav", "mp3_320"))
+edr.dat2$species <- factor(edr.dat2$species, labels=c("White-throated sparrow",
+                                                      "Warbling vireo",
+                                                      "Tenessee warbler",
+                                                      "Red-breasted nuthatch",
+                                                      "Rose-breasted grosbeak",
+                                                      "Pine siskin",
+                                                      "Ovenbird",
+                                                      "Olive-sided flycatcher",
+                                                      "Northern saw-what owl",
+                                                      "Lincoln's sparrow",
+                                                      "Long-eared owl",
+                                                      "Dark-eyed junco",
+                                                      "Common raven",
+                                                      "Clay-coloured sparrow",
+                                                      "Blackburnian warbler",
+                                                      "Brown-headed cowbird",
+                                                      "Belted kingfisher",
+                                                      "Bay-breasted warbler",
+                                                      "Black-and-white warbler",
+                                                      "8000 Hz tone",
+                                                      "5656 Hz tone",
+                                                      "4000 Hz tone",
+                                                      "28282 Hz tone"))
+
+clrs <- viridis::viridis(3)
 
 edr.plot <- ggplot(edr.dat2) +
   geom_density_ridges(aes(x=edr, y=species, fill=compression), colour="grey30", alpha = 0.5) +
-  scale_fill_viridis_d(name="Compression type\n(file type_bit rate)", values=c(0, 0.5)) +
+  scale_fill_manual(name="Compression type\n(file type_bit rate)", values=clrs[c(1,2)]) +
+  scale_y_discrete(limits=rev) +
   xlab("Effective detection radius (m)") +
   my.theme +
   theme(legend.position = "bottom",
         axis.title.y = element_blank())
 edr.plot
 
-ggsave(edr.plot, filename="figures/Distance.jpeg", width=8, height=12)
+ggsave(edr.plot, filename="figures/Distance.jpeg", width=8, height=10)
 

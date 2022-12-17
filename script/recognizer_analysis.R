@@ -24,15 +24,35 @@ hit <- rbind(oven, coni) %>%
          samplerate = factor(samplerate, levels=c("22050", "32000", "44100"))) %>% 
   dplyr::filter(!is.na(detection))
 
-#3. Calculate precision----
-rec <- hit %>% 
+#3. Create gold standard set-----
+gold <- hit %>% 
+  dplyr::filter(detection==1) %>% 
+  dplyr::select(species, recording, time) %>% 
+  merge(expand.grid(samplerate = unique(hit$samplerate),
+                    compressiontype = unique(hit$compressiontype))) %>% 
+  mutate(gold=1)
+
+#3. Join gold standards back to hits----
+hit.gold <- hit %>% 
+  full_join(gold) %>% 
+  mutate(gold = ifelse(is.na(gold), 0, 1),
+         fn = ifelse(gold==1 & is.na(detection), 1, 0),
+         hit = ifelse(!is.na(detection), 1, 0),
+         detection = ifelse(is.na(detection), 0, detection)) 
+
+#5. Calculate precision & recall----
+rec <- hit.gold %>% 
   group_by(recording, species, samplerate, compressiontype) %>% 
-  summarize(n=n(),
-            hits = sum(detection)) %>% 
+  summarize(hits=sum(hit),
+            detections = sum(detection),
+            misses = sum(fn)) %>% 
   ungroup() %>% 
-  mutate(precision = hits/n,
+  mutate(precision = detections/hits,
+         recall = detections/(detections+misses),
          precision = ifelse(precision==1, 0.99999999, precision),
-         precision = ifelse(precision==0, 0.00000001, precision))
+         precision = ifelse(precision==0, NA, precision),
+         recall = ifelse(recall==1, 0.99999999, recall),
+         recall = ifelse(recall==0, 0.00000001, recall))
 
 #4. Get list of all files----
 #Get list of files processed for combo that doesn't have 1000
@@ -57,7 +77,7 @@ files <- read.csv("data/recognizerfilelist.csv") %>%
 #5. Add recall of each file----
 dat <- files %>% 
   left_join(rec) %>% 
-  mutate(recall = ifelse(is.na(precision), 0, 1))
+  mutate(recall.r = ifelse(is.na(precision), 0, 1))
 
 #6. Visualize----
 
@@ -88,7 +108,7 @@ priors <- c(prior(normal(100, 10000), class = "Intercept"),
             prior(normal(0,10), class = "b", coef = "samplerate44100:compressiontypemp3_96"),
             prior(normal(0,10), class = "b", coef = "samplerate44100:compressiontypemp3_320"))
 
-#7a. CONI
+#7a. CONI precision
 p.coni.b <- brm(precision ~ samplerate*compressiontype + (1|recording),
                 family=Beta(),
                 data = dat.coni, 
@@ -123,7 +143,20 @@ summary(p.coni.b)
 # #check distribution
 # pp_check(p.coni.b, ndraws = 500)
 
-#7b. OVEN
+#7b. CONI recall
+r.coni.b <- brm(recall ~ samplerate*compressiontype + (1|recording),
+                family=Beta(),
+                data = dat.coni, 
+                warmup = 1000, 
+                iter   = 20000, 
+                chains = 3, 
+                inits  = "random",
+                cores  = 6,
+                prior=priors)
+
+summary(r.coni.b)
+
+#7c. OVEN precision
 p.oven.b <- brm(precision ~ samplerate*compressiontype + (1|recording),
                 family=Beta(),
                 data = dplyr::filter(dat.oven, !is.na(precision)), 
@@ -136,6 +169,19 @@ p.oven.b <- brm(precision ~ samplerate*compressiontype + (1|recording),
 
 summary(p.oven.b)
 
+#7d. OVEN recall
+r.oven.b <- brm(recall ~ samplerate*compressiontype + (1|recording),
+                family=Beta(),
+                data = dplyr::filter(dat.oven, !is.na(precision)), 
+                warmup = 1000, 
+                iter   = 20000, 
+                chains = 3, 
+                inits  = "random",
+                cores  = 6,
+                prior = priors)
+
+summary(r.oven.b)
+
 #8. Predict----
 newdat <- expand.grid(samplerate = unique(dat$samplerate),
                       compressiontype = unique(dat$compressiontype))
@@ -144,15 +190,31 @@ p.coni.pred <- newdat %>%
   add_epred_draws(p.coni.b,
                    re_formula = NA,
                    ndraws = 1000) %>% 
-  mutate(species="CONI")
+  mutate(species="CONI",
+         response="Precision")
 
 p.oven.pred <- newdat %>% 
   add_epred_draws(p.oven.b,
                    re_formula = NA,
                    ndraws = 1000) %>% 
-  mutate(species="OVEN")
+  mutate(species="OVEN",
+         response="Precision")
 
-pred <- rbind(p.coni.pred, p.oven.pred)
+r.coni.pred <- newdat %>% 
+  add_epred_draws(r.coni.b,
+                  re_formula = NA,
+                  ndraws = 1000) %>% 
+  mutate(species="CONI",
+         response="Recall")
+
+r.oven.pred <- newdat %>% 
+  add_epred_draws(r.oven.b,
+                  re_formula = NA,
+                  ndraws = 1000) %>% 
+  mutate(species="OVEN",
+         response="Recall")
+
+pred <- rbind(p.coni.pred, p.oven.pred, r.coni.pred, r.oven.pred)
 pred$species <- factor(pred$species, labels=c("Common nighthawk (CONI)", "Ovenbird (OVEN)"))
 
 #9. Plot----
@@ -172,18 +234,26 @@ recognizer.plot <- ggplot(pred) +
   geom_density_ridges(aes(x=.epred, y=samplerate, fill=compressiontype), colour="grey30", alpha = 0.5) +
   scale_fill_viridis_d(name="Compression type\n(file type_bit rate") +
   ylab("Sample rate (Hz)") +
-  xlab("Precision") +
   my.theme +
-  theme(legend.position = "bottom") +
-  facet_wrap(~species, scales="free_x")
+  theme(legend.position = "bottom",
+        axis.title.x = element_blank()) +
+  facet_grid(species~response, scales="free_x")
 
-ggsave(recognizer.plot, filename="figures/Recognizers.jpeg", width=8, height=6)
+ggsave(recognizer.plot, filename="figures/Recognizers.jpeg", width=8, height=8)
 
 #10. Summary stats----
 mean(dat.coni$precision, na.rm=TRUE)
+sd(dat.coni$precision, na.rm=TRUE)
 mean(dat.oven$precision, na.rm=TRUE)
+sd(dat.oven$precision, na.rm=TRUE)
 mean(dat.coni$recall, na.rm=TRUE)
+sd(dat.coni$recall, na.rm=TRUE)
 mean(dat.oven$recall, na.rm=TRUE)
+sd(dat.oven$recall, na.rm=TRUE)
+mean(dat.coni$recall.r, na.rm=TRUE)
+sd(dat.coni$recall.r, na.rm=TRUE)
+mean(dat.oven$recall.r, na.rm=TRUE)
+sd(dat.oven$recall.r, na.rm=TRUE)
 
 dat %>% 
   group_by(species, samplerate, compressiontype) %>% 

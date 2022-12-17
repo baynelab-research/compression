@@ -122,7 +122,9 @@ edr.dat2 <- edr.dat %>%
   group_by(species, compression) %>% 
   dplyr::filter(edr >= quantile(edr, 0.085, na.rm=TRUE),
                 edr <= quantile(edr, 0.915, na.rm=TRUE)) %>% 
-  dplyr::filter(!species %in% c("1000Hz","1414Hz","2000Hz","11313Hz","BOOW","GGOW","BAOW"))
+  dplyr::filter(!species %in% c("1000Hz","1414Hz","2000Hz","11313Hz","BOOW","GGOW","BAOW")) %>% 
+  mutate(species = ifelse(species=="BLWA", "CMWA", species))
+
 edr.dat2$compression <- factor(edr.dat2$compression, levels=c("wav", "mp3"), labels=c("wav", "mp3_320"))
 edr.dat2$species <- factor(edr.dat2$species, labels=c("White-throated sparrow",
                                                       "Warbling vireo",
@@ -138,7 +140,7 @@ edr.dat2$species <- factor(edr.dat2$species, labels=c("White-throated sparrow",
                                                       "Dark-eyed junco",
                                                       "Common raven",
                                                       "Clay-coloured sparrow",
-                                                      "Blackburnian warbler",
+                                                      "Cape may warbler",
                                                       "Brown-headed cowbird",
                                                       "Belted kingfisher",
                                                       "Bay-breasted warbler",

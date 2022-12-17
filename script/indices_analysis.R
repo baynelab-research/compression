@@ -4,6 +4,8 @@ library(bayesplot)
 library(tidybayes)
 library(ggridges)
 
+#TO DO: TAKE OUT THE FUCKING SM3 DATA####
+
 #1. Read in data----
 aci <- read.csv("data/acoustic indices/ACI.csv") %>% 
   pivot_longer(cols=X22050_320_mp3:X44100_or_48000_wav, names_to="treatment", values_to="aci")

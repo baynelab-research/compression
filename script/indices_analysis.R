@@ -15,12 +15,15 @@ adi <- read.csv("data/acoustic indices/ADI.csv") %>%
 #2. Put together and wrangle----
 dat <- full_join(aci, adi) %>% 
   rename(recording=X) %>% 
+  rowwise() %>% 
   mutate(samplerate = as.numeric(str_sub(treatment, 2, 6)),
          compressiontype = ifelse(samplerate==44100,
                                   str_sub(treatment, 17, 100),
-                                  str_sub(treatment, 8, 100))) %>% 
+                                  str_sub(treatment, 8, 100)),
+         sm3 = str_detect(recording, pattern='\\+')) %>% 
+  dplyr::filter(sm3==FALSE) %>% 
   separate(compressiontype, into=c("bitrate", "filetype")) %>% 
-  mutate(compressiontype = ifelse(bitrate=="wav", "wav", paste0(filetype, "_", bitrate)))
+  mutate(compressiontype = ifelse(bitrate=="wav", "wav", paste0(filetype, "_", bitrate))) 
 
 #make compression type a factor
 dat$compressiontype <- factor(dat$compressiontype, levels=c("wav", "mp3_320", "mp3_96"))
@@ -120,7 +123,7 @@ index.plot <- ggplot(pred) +
   facet_wrap(~index, scales="free_x")
 index.plot
 
-ggsave(index.plot, filename="figures/Indices.jpeg", width=8, height=6)
+ggsave(index.plot, filename="figures/Indices.jpeg", width=8, height=5)
 
 #7. Summary stats----
 mean(dat$aci, na.rm=TRUE)

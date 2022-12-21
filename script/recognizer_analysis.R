@@ -21,7 +21,8 @@ hit <- rbind(oven, coni) %>%
                                 samplerate==44100 ~ 44100),
          compressiontype = ifelse(filetype=="wav", "wav", paste0("mp3_", compressionrate)),
          compressiontype = factor(compressiontype, levels=c("wav", "mp3_320", "mp3_96")),
-         samplerate = factor(samplerate, levels=c("22050", "32000", "44100"))) %>% 
+         samplerate = factor(samplerate, levels=c("22050", "32000", "44100")),
+         score = ifelse(score==1, 0.99999999, score)) %>% 
   dplyr::filter(!is.na(detection))
 
 #3. Create gold standard set-----
@@ -45,7 +46,8 @@ rec <- hit.gold %>%
   group_by(recording, species, samplerate, compressiontype) %>% 
   summarize(hits=sum(hit),
             detections = sum(detection),
-            misses = sum(fn)) %>% 
+            misses = sum(fn),
+            score = mean(score, na.rm=TRUE)) %>% 
   ungroup() %>% 
   mutate(precision = detections/hits,
          recall = detections/(detections+misses),
@@ -91,12 +93,19 @@ ggplot(dat) +
   geom_jitter(aes(x=samplerate, y=recall, colour=species)) +
   facet_grid(species~ compressiontype)
 
+#6c. Score----
+ggplot(hit) +
+  geom_boxplot(aes(x=samplerate, y=score, colour=species)) +
+  facet_grid(species~ compressiontype)
+
 #7. Model----
 
 #https://biol609.github.io/lectures/23c_brms_prediction.html#3_prediction_with_brms_and_mixed_models
 
 dat.coni <- dplyr::filter(dat, species=="CONI")
+hit.coni <- dplyr::filter(hit, species=="CONI")
 dat.oven <- dplyr::filter(dat, species=="OVEN")
+hit.oven <- dplyr::filter(hit, species=="OVEN")
 
 priors <- c(prior(normal(100, 10000), class = "Intercept"),
               prior(normal(0,10), class = "b", coef ="compressiontypemp3_96"),
@@ -156,7 +165,20 @@ r.coni.b <- brm(recall ~ samplerate*compressiontype + (1|recording),
 
 summary(r.coni.b)
 
-#7c. OVEN precision
+#7c. CONI score
+s.coni.b <- brm(score ~ samplerate*compressiontype + (1|recording),
+                family=Beta(),
+                data = dat.coni, 
+                warmup = 1000, 
+                iter   = 20000, 
+                chains = 3, 
+                inits  = "random",
+                cores  = 6,
+                prior=priors)
+
+summary(s.coni.b)
+
+#7d. OVEN precision
 p.oven.b <- brm(precision ~ samplerate*compressiontype + (1|recording),
                 family=Beta(),
                 data = dplyr::filter(dat.oven, !is.na(precision)), 
@@ -169,7 +191,7 @@ p.oven.b <- brm(precision ~ samplerate*compressiontype + (1|recording),
 
 summary(p.oven.b)
 
-#7d. OVEN recall
+#7e. OVEN recall
 r.oven.b <- brm(recall ~ samplerate*compressiontype + (1|recording),
                 family=Beta(),
                 data = dplyr::filter(dat.oven, !is.na(precision)), 
@@ -181,6 +203,19 @@ r.oven.b <- brm(recall ~ samplerate*compressiontype + (1|recording),
                 prior = priors)
 
 summary(r.oven.b)
+
+#7f. CONI score
+s.oven.b <- brm(score ~ samplerate*compressiontype + (1|recording),
+                family=Beta(),
+                data = dat.oven, 
+                warmup = 1000, 
+                iter   = 20000, 
+                chains = 3, 
+                inits  = "random",
+                cores  = 6,
+                prior=priors)
+
+summary(s.oven.b)
 
 #8. Predict----
 newdat <- expand.grid(samplerate = unique(dat$samplerate),
@@ -214,7 +249,21 @@ r.oven.pred <- newdat %>%
   mutate(species="OVEN",
          response="Recall")
 
-pred <- rbind(p.coni.pred, p.oven.pred, r.coni.pred, r.oven.pred)
+s.coni.pred <- newdat %>% 
+  add_epred_draws(s.coni.b,
+                  re_formula = NA,
+                  ndraws = 1000) %>% 
+  mutate(species="CONI",
+         response="Score")
+
+s.oven.pred <- newdat %>% 
+  add_epred_draws(s.oven.b,
+                  re_formula = NA,
+                  ndraws = 1000) %>% 
+  mutate(species="OVEN",
+         response="Score")
+
+pred <- rbind(p.coni.pred, p.oven.pred, r.coni.pred, r.oven.pred, s.coni.pred, s.oven.pred)
 pred$species <- factor(pred$species, labels=c("Common nighthawk (CONI)", "Ovenbird (OVEN)"))
 
 #9. Plot----
@@ -238,6 +287,7 @@ recognizer.plot <- ggplot(pred) +
   theme(legend.position = "bottom",
         axis.title.x = element_blank()) +
   facet_grid(species~response, scales="free_x")
+recognizer.plot
 
 ggsave(recognizer.plot, filename="figures/Recognizers.jpeg", width=8, height=8)
 

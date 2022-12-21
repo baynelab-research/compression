@@ -86,6 +86,8 @@ use.tmtt <- use.rec %>%
           mutate(user_id=observer)) %>% 
   mutate(abundance = as.numeric(abundance))
 
+write.csv(use.tmtt, "data/community/wrangledcommunitydata.csv", row.names=FALSE)
+
 #6. Summarize----
 
 #6a. Abundance----
@@ -105,7 +107,7 @@ dat.rich <- use.tmtt %>%
 #6c. Put together----
 #Take out 1 recording that was processed twice
 dat <- full_join(dat.abun, dat.rich) %>% 
-  dplyr::filter(!(user_id==531 & recording=="Y-5-217-CT_20160625_020000" & compressiontype=="wav"))
+  dplyr::filter(!(user_id==15 & recording=="Y-5-217-CT_20160625_020000" & compressiontype=="wav"))
 
 #6d. Make factors----
 dat$compressiontype <- factor(dat$compressiontype, levels=c("wav", "mp3_320", "mp3_96"))
@@ -114,19 +116,38 @@ dat$compressiontype <- factor(dat$compressiontype, levels=c("wav", "mp3_320", "m
 
 #7a. Abundance----
 ggplot(dat) +
-  geom_boxplot(aes(x=factor(samplerate), y=abundance, colour=compressiontype))
+  geom_boxplot(aes(x=factor(samplerate), y=abundance, colour=compressiontype)) + 
+  facet_wrap(~user_id)
 
 #7b. Richness----
 ggplot(dat) +
-  geom_boxplot(aes(x=factor(samplerate), y=richness, colour=compressiontype))
+  geom_boxplot(aes(x=factor(samplerate), y=richness, colour=compressiontype)) + 
+  facet_wrap(~user_id)
+
+
+#7c. Differences by recording----
+dat.wide <- dat %>% 
+  pivot_wider(id_cols=c(recording, user_id), names_from=compressiontype, values_from=c(abundance, richness)) %>% 
+  mutate(abun_diff = abundance_wav - abundance_mp3_320,
+         rich_diff = richness_wav - richness_mp3_320)
+
+hist(dat.wide$abun_diff)
+ggplot(dat.wide) +
+  geom_point(aes(x=abun_diff, y=rich_diff, colour=factor(user_id)))
+
+dat.sub <- dplyr::filter(dat, user_id!=531)
+dat$user_id <- factor(dat$user_id)
 
 #8. Model----
 priors <- c(prior(normal(0,10), class = "Intercept"),
                 prior(normal(0,10), class = "b", coef ="compressiontypemp3_96"),
-                prior(normal(0,10), class = "b", coef = "compressiontypemp3_320"))
+                prior(normal(0,10), class = "b", coef = "compressiontypemp3_320"),
+            prior(normal(0,10), class = "b", coef = "user_id18"),
+            prior(normal(0,10), class = "b", coef = "user_id41"),
+            prior(normal(0,10), class = "b", coef = "user_id531"))
 
 #8a. Abundance----
-abun.b <- brm(abundance ~ compressiontype + (1|recording) + (1|user_id),
+abun.b <- brm(abundance ~ compressiontype*user_id + (1|recording),
              data = dat, 
              warmup = 1000, 
              iter   = 20000, 
@@ -138,8 +159,8 @@ abun.b <- brm(abundance ~ compressiontype + (1|recording) + (1|user_id),
 summary(abun.b)
 
 #8b. Richness
-rich.b <- brm(richness ~ compressiontype + (1|recording) + (1|user_id),
-              data = dat, 
+rich.b <- brm(richness ~ compressiontype + (1|recording),
+              data = dat.sub, 
               warmup = 1000, 
               iter   = 20000, 
               chains = 3, 

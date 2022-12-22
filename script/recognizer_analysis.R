@@ -254,17 +254,18 @@ s.coni.pred <- newdat %>%
                   re_formula = NA,
                   ndraws = 1000) %>% 
   mutate(species="CONI",
-         response="Score")
+         response="Mean score")
 
 s.oven.pred <- newdat %>% 
   add_epred_draws(s.oven.b,
                   re_formula = NA,
                   ndraws = 1000) %>% 
   mutate(species="OVEN",
-         response="Score")
+         response="Mean score")
 
 pred <- rbind(p.coni.pred, p.oven.pred, r.coni.pred, r.oven.pred, s.coni.pred, s.oven.pred)
 pred$species <- factor(pred$species, labels=c("Common nighthawk (CONI)", "Ovenbird (OVEN)"))
+pred$response <- factor(pred$response, levels=c("Precision", "Recall", "Mean score"))
 
 #9. Plot----
 my.theme <- theme_classic() +
@@ -281,7 +282,7 @@ my.theme <- theme_classic() +
 
 recognizer.plot <- ggplot(pred) +
   geom_density_ridges(aes(x=.epred, y=samplerate, fill=compressiontype), colour="grey30", alpha = 0.5) +
-  scale_fill_viridis_d(name="Compression type\n(file type_bit rate") +
+  scale_fill_viridis_d(name="Compression type\n(file type_bitrate)") +
   ylab("Sample rate (Hz)") +
   my.theme +
   theme(legend.position = "bottom",
@@ -289,7 +290,7 @@ recognizer.plot <- ggplot(pred) +
   facet_grid(species~response, scales="free_x")
 recognizer.plot
 
-ggsave(recognizer.plot, filename="figures/Recognizers.jpeg", width=8, height=8)
+ggsave(recognizer.plot, filename="figures/Recognizers.jpeg", width=12, height=8)
 
 #10. Summary stats----
 mean(dat.coni$precision, na.rm=TRUE)

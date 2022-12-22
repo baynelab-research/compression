@@ -154,7 +154,7 @@ clrs <- viridis::viridis(3)
 
 edr.plot <- ggplot(edr.dat2) +
   geom_density_ridges(aes(x=edr, y=species, fill=compression), colour="grey30", alpha = 0.5) +
-  scale_fill_manual(name="Compression type\n(file type_bit rate)", values=clrs[c(1,2)]) +
+  scale_fill_manual(name="Compression type\n(file type_bitrate)", values=clrs[c(1,2)]) +
   scale_y_discrete(limits=rev) +
   xlab("Effective detection radius (m)") +
   my.theme +

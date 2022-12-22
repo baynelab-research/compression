@@ -113,7 +113,7 @@ my.theme <- theme_classic() +
 
 index.plot <- ggplot(pred) +
   geom_density_ridges(aes(x=.epred, y=samplerate, fill=compressiontype), colour="grey30", alpha = 0.5) +
-  scale_fill_viridis_d(name="Compression type\n(file type_bit rate") +
+  scale_fill_viridis_d(name="Compression type\n(file type_bitrate)") +
   ylab("Sample rate (Hz)") +
   xlab("Index value") +
   my.theme +

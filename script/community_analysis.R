@@ -107,7 +107,8 @@ dat.rich <- use.tmtt %>%
 #6c. Put together----
 #Take out 1 recording that was processed twice
 dat <- full_join(dat.abun, dat.rich) %>% 
-  dplyr::filter(!(user_id==15 & recording=="Y-5-217-CT_20160625_020000" & compressiontype=="wav"))
+  dplyr::filter(!(user_id==15 & recording=="Y-5-217-CT_20160625_020000" & compressiontype=="wav"),
+                user_id!=531)
 
 #6d. Make factors----
 dat$compressiontype <- factor(dat$compressiontype, levels=c("wav", "mp3_320", "mp3_96"))
@@ -141,13 +142,10 @@ dat$user_id <- factor(dat$user_id)
 #8. Model----
 priors <- c(prior(normal(0,10), class = "Intercept"),
                 prior(normal(0,10), class = "b", coef ="compressiontypemp3_96"),
-                prior(normal(0,10), class = "b", coef = "compressiontypemp3_320"),
-            prior(normal(0,10), class = "b", coef = "user_id18"),
-            prior(normal(0,10), class = "b", coef = "user_id41"),
-            prior(normal(0,10), class = "b", coef = "user_id531"))
+                prior(normal(0,10), class = "b", coef = "compressiontypemp3_320"))
 
 #8a. Abundance----
-abun.b <- brm(abundance ~ compressiontype*user_id + (1|recording),
+abun.b <- brm(abundance ~ compressiontype + (1|recording) + (1|user_id),
              data = dat, 
              warmup = 1000, 
              iter   = 20000, 
@@ -159,7 +157,7 @@ abun.b <- brm(abundance ~ compressiontype*user_id + (1|recording),
 summary(abun.b)
 
 #8b. Richness
-rich.b <- brm(richness ~ compressiontype + (1|recording),
+rich.b <- brm(richness ~ compressiontype + (1|recording) + (1|user_id),
               data = dat.sub, 
               warmup = 1000, 
               iter   = 20000, 

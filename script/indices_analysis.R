@@ -29,21 +29,22 @@ dat$samplerate <- factor(dat$samplerate, levels=c("22050", "32000", "44100"))
 
 #3. Visualize----
 ggplot(dat) +
-  geom_point(aes(x=samplerate, y=aci, colour=compressiontype))
+  geom_point(aes(x=samplerate, y=aci, colour=compressiontype)) +
+  facet_wrap(~compressiontype)
 
 ggplot(dat) +
   geom_point(aes(x=samplerate, y=adi, colour=compressiontype))
 
 #4. Model----
-priors.aci <- c(prior(normal(1000, 10000), class = "Intercept"),
-                prior(normal(0,10), class = "b", coef ="compressiontypemp3_96"),
-                prior(normal(0,10), class = "b", coef = "compressiontypemp3_320"),
-                prior(normal(0,10), class = "b", coef = "samplerate32000"),
-                prior(normal(0,10), class = "b", coef = "samplerate44100"),
-                prior(normal(0,10), class = "b", coef = "samplerate32000:compressiontypemp3_96"),
-                prior(normal(0,10), class = "b", coef = "samplerate32000:compressiontypemp3_320"),
-                prior(normal(0,10), class = "b", coef = "samplerate44100:compressiontypemp3_96"),
-                prior(normal(0,10), class = "b", coef = "samplerate44100:compressiontypemp3_320"))
+priors.aci <- c(prior(normal(4000, 10000), class = "Intercept"),
+                prior(normal(0,1000), class = "b", coef ="compressiontypemp3_96"),
+                prior(normal(0,1000), class = "b", coef = "compressiontypemp3_320"),
+                prior(normal(0,1000), class = "b", coef = "samplerate32000"),
+                prior(normal(0,1000), class = "b", coef = "samplerate44100"),
+                prior(normal(0,1000), class = "b", coef = "samplerate32000:compressiontypemp3_96"),
+                prior(normal(0,1000), class = "b", coef = "samplerate32000:compressiontypemp3_320"),
+                prior(normal(0,1000), class = "b", coef = "samplerate44100:compressiontypemp3_96"),
+                prior(normal(0,1000), class = "b", coef = "samplerate44100:compressiontypemp3_320"))
 
 priors.adi <- c(prior(normal(0,10), class = "Intercept"),
                 prior(normal(0,10), class = "b", coef ="compressiontypemp3_96"),
@@ -66,6 +67,28 @@ aci.b <- brm(aci ~ samplerate*compressiontype + (1|recording),
                 prior=priors.aci)
 
 summary(aci.b)
+
+#Inspect mixing
+plot(aci.b)
+#Inspect rhat
+mcmc_rhat(rhat(aci.b))
+#Inspect neff
+mcmc_neff(neff_ratio(aci.b))
+#Inspect residuals
+preds <- dat %>%
+  add_predicted_draws(aci.b,
+                      ndraws = 100)
+qres <- preds %>%
+  summarise(quant_residual = mean(.prediction < aci))
+ggplot(qres, aes(sample = quant_residual)) +
+  geom_qq(distribution = stats::qunif) +
+  geom_qq_line(distribution = stats::qunif)
+#Inspect fit
+ggplot(preds) +
+  stat_pointinterval(aes(x = .row, y = .prediction)) +
+  geom_point(aes(x = .row, y = aci), color = "red")
+#check distribution
+pp_check(aci.b, ndraws = 500)
 
 #4b. ADI----
 adi.b <- brm(adi ~ samplerate*compressiontype + (1|recording),

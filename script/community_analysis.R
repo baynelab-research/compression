@@ -155,6 +155,7 @@ abun.b <- brm(abundance ~ compressiontype + (1|recording) + (1|user_id),
              prior=priors)
 
 summary(abun.b)
+ranef(abun.b)$user_id
 
 #8b. Richness
 rich.b <- brm(richness ~ compressiontype + (1|recording) + (1|user_id),
@@ -167,6 +168,7 @@ rich.b <- brm(richness ~ compressiontype + (1|recording) + (1|user_id),
               prior=priors)
 
 summary(rich.b)
+ranef(rich.b)$user_id
 
 #9. Predict----
 newdat <- data.frame(compressiontype = unique(dat$compressiontype),

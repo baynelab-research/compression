@@ -72,14 +72,19 @@ rec <- hit.gold %>%
 # 
 # write.csv(files, "data/recognizerfilelist.csv", row.names = FALSE)
 
+#manually add in the file that is missing from the list
 files <- read.csv("data/recognizerfilelist.csv") %>% 
   mutate(samplerate = factor(samplerate, levels=c("22050", "32000", "44100")),
-         compressiontype = factor(compressiontype, levels=c("wav", "mp3_320", "mp3_96")))
+         compressiontype = factor(compressiontype, levels=c("wav", "mp3_320", "mp3_96"))) %>% 
+  rbind(data.frame(recording="UP-09-057-OG_20150701_050000_000.wav", species="OVEN", samplerate="44100", compressiontype="mp3_96"))
 
-#5. Add recall of each file----
+#5. Add recall of each file and recording treatment type----
 dat <- files %>% 
-  left_join(rec) %>% 
-  mutate(recall.r = ifelse(is.na(precision), 0, 1))
+  full_join(rec) %>% 
+  mutate(recall.r = ifelse(is.na(precision), 0, 1)) %>% 
+  separate(recording, into=c("project", "site", "station", "treatment", "date", "time", "seconds", "filetype"), remove=FALSE)
+  
+table(dat$samplerate, dat$compressiontype, dat$species)
 
 #6. Visualize----
 
@@ -130,6 +135,16 @@ p.coni.b <- brm(precision ~ samplerate*compressiontype + (1|recording),
 
 summary(p.coni.b)
 
+p.coni.ranef <- ranef(p.coni.b)$recording %>% 
+  data.frame() %>% 
+  mutate(recording=rownames(ranef(p.coni.b)$recording)) %>% 
+  separate(recording, into=c("project", "site", "station", "treatment", "date", "time", "seconds", "filetype"), remove=FALSE) %>% 
+  group_by(treatment) %>% 
+  summarize(est = mean(Estimate.Intercept),
+            low = mean(Q2.5.Intercept),
+            high = mean(Q97.5.Intercept)) %>% 
+  ungroup()
+
 # #Inspect mixing
 # plot(p.coni.b)
 # #Inspect rhat
@@ -165,6 +180,16 @@ r.coni.b <- brm(recall ~ samplerate*compressiontype + (1|recording),
 
 summary(r.coni.b)
 
+r.coni.ranef <- ranef(r.coni.b)$recording %>% 
+  data.frame() %>% 
+  mutate(recording=rownames(ranef(r.coni.b)$recording)) %>% 
+  separate(recording, into=c("project", "site", "station", "treatment", "date", "time", "seconds", "filetype"), remove=FALSE) %>% 
+  group_by(treatment) %>% 
+  summarize(est = mean(Estimate.Intercept),
+            low = mean(Q2.5.Intercept),
+            high = mean(Q97.5.Intercept)) %>% 
+  ungroup()
+
 #7c. CONI score
 s.coni.b <- brm(score ~ samplerate*compressiontype + (1|recording),
                 family=Beta(),
@@ -177,6 +202,16 @@ s.coni.b <- brm(score ~ samplerate*compressiontype + (1|recording),
                 prior=priors)
 
 summary(s.coni.b)
+
+s.coni.ranef <- ranef(s.coni.b)$recording %>% 
+  data.frame() %>% 
+  mutate(recording=rownames(ranef(s.coni.b)$recording)) %>% 
+  separate(recording, into=c("project", "site", "station", "treatment", "date", "time", "seconds", "filetype"), remove=FALSE) %>% 
+  group_by(treatment) %>% 
+  summarize(est = mean(Estimate.Intercept),
+            low = mean(Q2.5.Intercept),
+            high = mean(Q97.5.Intercept)) %>% 
+  ungroup()
 
 #7d. OVEN precision
 p.oven.b <- brm(precision ~ samplerate*compressiontype + (1|recording),
@@ -191,6 +226,16 @@ p.oven.b <- brm(precision ~ samplerate*compressiontype + (1|recording),
 
 summary(p.oven.b)
 
+p.oven.ranef <- ranef(p.oven.b)$recording %>% 
+  data.frame() %>% 
+  mutate(recording=rownames(ranef(p.oven.b)$recording)) %>% 
+  separate(recording, into=c("project", "site", "station", "treatment", "date", "time", "seconds", "filetype"), remove=FALSE) %>% 
+  group_by(treatment) %>% 
+  summarize(est = mean(Estimate.Intercept),
+            low = mean(Q2.5.Intercept),
+            high = mean(Q97.5.Intercept)) %>% 
+  ungroup()
+
 #7e. OVEN recall
 r.oven.b <- brm(recall ~ samplerate*compressiontype + (1|recording),
                 family=Beta(),
@@ -204,6 +249,16 @@ r.oven.b <- brm(recall ~ samplerate*compressiontype + (1|recording),
 
 summary(r.oven.b)
 
+r.oven.ranef <- ranef(r.oven.b)$recording %>% 
+  data.frame() %>% 
+  mutate(recording=rownames(ranef(r.oven.b)$recording)) %>% 
+  separate(recording, into=c("project", "site", "station", "treatment", "date", "time", "seconds", "filetype"), remove=FALSE) %>% 
+  group_by(treatment) %>% 
+  summarize(est = mean(Estimate.Intercept),
+            low = mean(Q2.5.Intercept),
+            high = mean(Q97.5.Intercept)) %>% 
+  ungroup()
+
 #7f. CONI score
 s.oven.b <- brm(score ~ samplerate*compressiontype + (1|recording),
                 family=Beta(),
@@ -216,6 +271,16 @@ s.oven.b <- brm(score ~ samplerate*compressiontype + (1|recording),
                 prior=priors)
 
 summary(s.oven.b)
+
+s.oven.ranef <- ranef(s.oven.b)$recording %>% 
+  data.frame() %>% 
+  mutate(recording=rownames(ranef(s.oven.b)$recording)) %>% 
+  separate(recording, into=c("project", "site", "station", "treatment", "date", "time", "seconds", "filetype"), remove=FALSE) %>% 
+  group_by(treatment) %>% 
+  summarize(est = mean(Estimate.Intercept),
+            low = mean(Q2.5.Intercept),
+            high = mean(Q97.5.Intercept)) %>% 
+  ungroup()
 
 #8. Predict----
 newdat <- expand.grid(samplerate = unique(dat$samplerate),
